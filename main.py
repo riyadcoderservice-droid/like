@@ -6,7 +6,8 @@
 ║           POWERED BY FREXY                                       ║
 ╚══════════════════════════════════════════════════════════════════╝
 
-Render Deployment Ready - Reads config from Environment Variables
+RENDER DEPLOY READY - Token & ID hardcoded below
+No environment variables needed!
 """
 
 import os
@@ -26,28 +27,24 @@ from telegram.ext import (
 )
 
 # ═══════════════════════════════════════════════════════════════════
-# CONFIGURATION - READ FROM ENVIRONMENT VARIABLES (Render)
+# 🔴 EDIT THESE 2 VALUES ONLY - THEN DEPLOY TO RENDER
 # ═══════════════════════════════════════════════════════════════════
 
-BOT_TOKEN = os.environ.get("8535184265:AAF-Tav70c7KDvTGyuaqX6hEDfeH_TDRA4o", "")
-ADMIN_ID = int(os.environ.get("6417430059", "0"))
-API_KEY = os.environ.get("API_KEY", "JMLB")
-API_BASE = os.environ.get("API_BASE", "https://samiullike-production.up.railway.app")
+BOT_TOKEN = "8535184265:AAF-Tav70c7KDvTGyuaqX6hEDfeH_TDRA4o"   # ← Tomar BotFather token ekhane boshao
+ADMIN_ID = 6417430059                                  # ← Tomar Telegram ID ekhane boshao
 
-# Channel links from env (comma separated: name|link,name2|link2)
-CHANNELS_ENV = os.environ.get("CHANNELS", "")
-REQUIRED_CHANNELS = []
-if CHANNELS_ENV:
-    for ch in CHANNELS_ENV.split(","):
-        parts = ch.split("|")
-        if len(parts) == 2:
-            REQUIRED_CHANNELS.append({"name": parts[0].strip(), "link": parts[1].strip()})
-else:
-    # Default fallback channels
-    REQUIRED_CHANNELS = [
-        {"name": "Channel 1", "link": "https://t.me/FREXY_OFC"},
-        {"name": "Channel 2", "link": "https://t.me/FREXY_CHATS"},
-    ]
+# ═══════════════════════════════════════════════════════════════════
+# API CONFIG (Already set - change only if needed)
+# ═══════════════════════════════════════════════════════════════════
+
+API_KEY = "JMLB"
+API_BASE = "https://samiullike-production.up.railway.app"
+
+# Required channels users MUST join (edit your 2 channel links here)
+REQUIRED_CHANNELS = [
+    {"name": "Channel 1", "link": "https://t.me/FREXY_OFC"},
+    {"name": "Channel 2", "link": "https://t.me/FREXY_CHATS"},
+]
 
 # Daily reset time (4:00 AM)
 RESET_HOUR = 4
@@ -831,19 +828,10 @@ async def run_auto_like(application):
 # ═══════════════════════════════════════════════════════════════════
 
 def main():
-    if not BOT_TOKEN or ":" not in BOT_TOKEN:
-        print("❌ ERROR: BOT_TOKEN not set or invalid!")
-        print("Set BOT_TOKEN environment variable in Render dashboard.")
-        print("Format: 123456789:ABCdefGHIjklMNOpqrSTUvwxyz")
-        return
-
-    if ADMIN_ID == 0:
-        print("⚠️ WARNING: ADMIN_ID not set! Admin commands won't work.")
-
     print("""
     ╔══════════════════════════════════════════════════════════════════╗
     ║           FREXY AUTO LIKE - Starting on Render...                ║
-    ║           Free Fire Auto Like Bot                                ║
+    ║           Token: Hardcoded in file                               ║
     ╚══════════════════════════════════════════════════════════════════╝
     """)
 
