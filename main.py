@@ -124,34 +124,21 @@ def save_data(key, data):
 # ═══════════════════════════════════════════════════════════════════
 
 def format_bold(text):
-    """Format text so that every non-empty line is styled in bold (*bold*) without any blockquotes (>)"""
+    """Format text so that every non-empty line is styled in bold (*bold*) with absolutely NO blockquotes (>)"""
     lines = text.split("\n")
     formatted_lines = []
     for line in lines:
         stripped = line.strip()
         if stripped:
-            clean = stripped.replace("*", "").replace("_", "")
-            formatted_lines.append(f"*{clean}*")
+            # Remove existing formatting and quote symbols to ensure clean rendering
+            clean = stripped.replace("*", "").replace("_", "").replace(">", "").strip()
+            if clean:
+                formatted_lines.append(f"*{clean}*")
+            else:
+                formatted_lines.append("")
         else:
             formatted_lines.append("")
     return "\n".join(formatted_lines)
-
-
-def format_admin_msg(text):
-    """Format admin commands as bold blockquotes (> *text*)"""
-    lines = text.split("\n")
-    quoted_lines = []
-    for line in lines:
-        stripped = line.strip()
-        if stripped:
-            clean = stripped.replace("*", "").replace("_", "")
-            quoted_lines.append(f"> *{clean}*")
-        else:
-            quoted_lines.append(">")
-    # Append the powered block
-    quoted_lines.append(">")
-    quoted_lines.append("> *⚡ POWERED BY FREXY ⚡*")
-    return "\n".join(quoted_lines)
 
 
 def is_admin(user_id):
@@ -371,7 +358,7 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     add_broadcast_user(user.id)
 
-    # Restriction: If private chat and user is not admin, deny access
+    # Restriction: Admin can use private; Regular users are restricted
     if chat.type == "private" and not is_admin(user.id):
         text = (
             "❌ ACCESS DENIED!\n\n"
@@ -401,7 +388,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     add_broadcast_user(user.id)
 
-    # Restriction: If private chat and user is not admin, deny access
+    # Restriction: Admin can use private; Regular users are restricted
     if chat.type == "private" and not is_admin(user.id):
         text = (
             "❌ ACCESS DENIED!\n\n"
@@ -433,9 +420,9 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"/removeauto <uid> - Remove auto like\n"
             f"/autolist - List auto-like UIDs\n"
             f"/stats - Bot statistics\n"
-            f"/grouplist - Allowed groups"
+            f"/grouplist - Allowed groups\n\n"
+            f"⚡ POWERED BY FREXY ⚡"
         )
-        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
     else:
         text = (
             f"{emoji} FREXY AUTO LIKE - USER COMMANDS {emoji}\n\n"
@@ -451,17 +438,18 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• Bot works in allowed groups\n\n"
             f"⚡ POWERED BY FREXY ⚡"
         )
-        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+    
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /like command - Restricted to Allowed Groups & Admin only in Private"""
+    """Handle /like command - Only Works in Allowed Groups for users"""
     user = update.effective_user
     chat = update.effective_chat
     add_broadcast_user(user.id)
     emoji = get_user_emoji(user.id)
 
-    # Restriction: Admin can use anywhere; Regular users are restricted from private chats
+    # Restriction: Admin can use private; Regular users are restricted
     if chat.type == "private" and not is_admin(user.id):
         text = (
             "❌ ACCESS DENIED!\n\n"
@@ -579,7 +567,7 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if result.get("status") in [1, 2]:
-        # Success Values
+        # Success Layout Matching User Format
         player_name = result.get("PlayerNickname", "Unknown")
         likes_before = result.get("LikesbeforeCommand", "N/A")
         likes_after = result.get("LikesafterCommand", "N/A")
@@ -645,7 +633,7 @@ async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ═══════════════════════════════════════════════════════════════════
-# ADMIN COMMANDS (All formatted in Blockquote/Bold)
+# ADMIN COMMANDS
 # ═══════════════════════════════════════════════════════════════════
 
 async def allow_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -664,7 +652,7 @@ async def allow_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Correct: /allow <group_id>\n"
             "Example: /allow -1001234567890"
         )
-        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     group_id = context.args[0]
@@ -672,9 +660,10 @@ async def allow_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"✅ GROUP ALLOWED!\n\n"
         f"Group ID: {group_id}\n"
-        f"Bot will now work in this group!"
+        f"Bot will now work in this group!\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
     )
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def removegroup_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -689,13 +678,16 @@ async def removegroup_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not context.args:
         text = "❌ Correct: /removegroup <group_id>"
-        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     group_id = context.args[0]
     remove_group(group_id)
-    text = f"✅ Group {group_id} removed!"
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    text = (
+        f"✅ Group {group_id} removed!\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
+    )
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def addchannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -714,7 +706,7 @@ async def addchannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Correct: /add <button_name> <channel_link>\n"
             "Example: /add MyChannel https://t.me/mychannel"
         )
-        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     name = context.args[0]
@@ -723,9 +715,10 @@ async def addchannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"✅ CHANNEL ADDED!\n\n"
         f"Name: {name}\n"
-        f"Link: {link}"
+        f"Link: {link}\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
     )
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def removechannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -740,13 +733,16 @@ async def removechannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not context.args:
         text = "❌ Correct: /removechannel <name>"
-        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     name = context.args[0]
     remove_channel(name)
-    text = f"✅ Channel {name} removed!"
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    text = (
+        f"✅ Channel {name} removed!\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
+    )
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -761,7 +757,7 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not context.args:
         text = "❌ Correct: /broadcast <message>"
-        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     message = " ".join(context.args)
@@ -770,7 +766,7 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     failed = 0
 
     status_msg = await update.message.reply_text(
-        format_admin_msg("📢 Broadcasting..."),
+        format_bold("📢 Broadcasting..."),
         parse_mode=ParseMode.MARKDOWN,
     )
 
@@ -781,7 +777,6 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{message}\n\n"
                 f"⚡ POWERED BY FREXY ⚡"
             )
-            # Standard users receive broadcast messages in full-bold format (no quotes)
             await context.bot.send_message(
                 uid, format_bold(text), parse_mode=ParseMode.MARKDOWN
             )
@@ -794,9 +789,10 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"✅ BROADCAST COMPLETE!\n\n"
         f"Sent: {sent}\n"
-        f"Failed: {failed}"
+        f"Failed: {failed}\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
     )
-    await status_msg.edit_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await status_msg.edit_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def unlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -815,7 +811,7 @@ async def unlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Correct: /unlimit <uid> <region>\n"
             "Example: /unlimit 123456789 BD"
         )
-        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     uid = context.args[0]
@@ -825,9 +821,10 @@ async def unlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ UNLIMITED LIKE ADDED!\n\n"
         f"UID: {uid}\n"
         f"Region: {region}\n"
-        f"No daily limit for this UID!"
+        f"No daily limit for this UID!\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
     )
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def removeunlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -842,13 +839,16 @@ async def removeunlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not context.args:
         text = "❌ Correct: /removeunlimit <uid>"
-        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     uid = context.args[0]
     remove_unlimited(uid)
-    text = f"✅ UID {uid} removed from unlimited list!"
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    text = (
+        f"✅ UID {uid} removed from unlimited list!\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
+    )
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def autolike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -867,7 +867,7 @@ async def autolike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Correct: /autolike <uid> <region>\n"
             "Example: /autolike 123456789 BD"
         )
-        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     uid = context.args[0]
@@ -877,9 +877,10 @@ async def autolike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ AUTO LIKE ADDED!\n\n"
         f"UID: {uid}\n"
         f"Region: {region}\n"
-        f"Daily like at 7:00 AM!"
+        f"Daily like at 7:00 AM!\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
     )
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def removeauto_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -894,13 +895,16 @@ async def removeauto_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not context.args:
         text = "❌ Correct: /removeauto <uid>"
-        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     uid = context.args[0]
     remove_auto_like(uid)
-    text = f"✅ UID {uid} removed from auto-like list!"
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    text = (
+        f"✅ UID {uid} removed from auto-like list!\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
+    )
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def autolist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -921,8 +925,9 @@ async def autolist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for uid, info in auto_list.items():
             lines.append(f"🆔 {uid} | 🌍 {info.get('region', 'N/A')}")
         text = "\n".join(lines)
+        text += "\n\n⚡ POWERED BY FREXY ⚡"
 
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -949,9 +954,10 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Allowed Groups: {len(groups)}\n"
         f"Channels: {len(channels)}\n"
         f"Auto-Like UIDs: {len(auto_list)}\n"
-        f"Unlimited UIDs: {len(unlimited)}"
+        f"Unlimited UIDs: {len(unlimited)}\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
     )
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def grouplist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -972,8 +978,9 @@ async def grouplist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for gid, info in groups.items():
             lines.append(f"🆔 {gid}")
         text = "\n".join(lines)
+        text += "\n\n⚡ POWERED BY FREXY ⚡"
 
-    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1059,7 +1066,7 @@ async def main_async():
     await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
     logger.info("Telegram Bot polling started.")
 
-    # dummy web server চালু করা (Render port binding এর জন্য)
+    # dummy web server चालू করা (Render port binding এর জন্য)
     app = web.Application()
     app.router.add_get('/', lambda r: web.Response(text="Bot is running successfully!"))
     runner = web.AppRunner(app)
