@@ -120,39 +120,38 @@ def save_data(key, data):
 
 
 # ═══════════════════════════════════════════════════════════════════
-# HELPER FUNCTIONS
+# FORMATTING HELPERS
 # ═══════════════════════════════════════════════════════════════════
 
-def get_user_emoji(user_id):
-    """Get a consistent random emoji for each user"""
-    users = load_data("users")
-    uid = str(user_id)
-    if uid not in users:
-        users[uid] = {"emoji": random.choice(EMOJI_POOL)}
-        save_data("users", users)
-    return users[uid].get("emoji", "🔥")
+def format_bold(text):
+    """Format text so that every non-empty line is styled in bold (*bold*) without any blockquotes (>)"""
+    lines = text.split("\n")
+    formatted_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped:
+            clean = stripped.replace("*", "").replace("_", "")
+            formatted_lines.append(f"*{clean}*")
+        else:
+            formatted_lines.append("")
+    return "\n".join(formatted_lines)
 
 
-def get_footer():
-    return "\n\n> ⚡ *POWERED BY FREXY* ⚡"
-
-
-def q(text):
-    """Format text as bold blockquote - each line prefixed with > *text*"""
+def format_admin_msg(text):
+    """Format admin commands as bold blockquotes (> *text*)"""
     lines = text.split("\n")
     quoted_lines = []
     for line in lines:
         stripped = line.strip()
         if stripped:
-            quoted_lines.append(f"> *{stripped}*")
+            clean = stripped.replace("*", "").replace("_", "")
+            quoted_lines.append(f"> *{clean}*")
         else:
             quoted_lines.append(">")
+    # Append the powered block
+    quoted_lines.append(">")
+    quoted_lines.append("> *⚡ POWERED BY FREXY ⚡*")
     return "\n".join(quoted_lines)
-
-
-def format_msg(text):
-    """Format message with bold quote and footer"""
-    return q(text) + get_footer()
 
 
 def is_admin(user_id):
@@ -286,6 +285,16 @@ def get_broadcast_users():
     return [int(uid) for uid in users.keys()]
 
 
+def get_user_emoji(user_id):
+    """Get a consistent random emoji for each user"""
+    users = load_data("users")
+    uid = str(user_id)
+    if uid not in users:
+        users[uid] = {"emoji": random.choice(EMOJI_POOL)}
+        save_data("users", users)
+    return users[uid].get("emoji", "🔥")
+
+
 # ═══════════════════════════════════════════════════════════════════
 # FREE FIRE API CLIENT - ASYNC (FAST)
 # ═══════════════════════════════════════════════════════════════════
@@ -359,83 +368,119 @@ def build_verify_keyboard():
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
     user = update.effective_user
+    chat = update.effective_chat
     add_broadcast_user(user.id)
-    emoji = get_user_emoji(user.id)
 
+    # Restriction: If private chat and user is not admin, deny access
+    if chat.type == "private" and not is_admin(user.id):
+        text = (
+            "❌ ACCESS DENIED!\n\n"
+            "This bot is only allowed inside authorized groups.\n"
+            "Private usage is restricted to administrators."
+        )
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+        return
+
+    emoji = get_user_emoji(user.id)
     text = (
         f"{emoji} WELCOME TO FREXY AUTO LIKE {emoji}\n\n"
         f"👤 Name: {user.first_name}\n"
-        f"🆔 ID: `{user.id}`\n\n"
+        f"🆔 ID: {user.id}\n\n"
         f"🎮 How to get likes?\n"
-        f"Use: `/like <region> <uid>`\n"
-        f"Example: `/like BD 123456789`\n\n"
-        f"📋 Use /help for all commands"
+        f"Use: /like <region> <uid>\n"
+        f"Example: /like BD 123456789\n\n"
+        f"📋 Use /help for all commands\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
     )
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command"""
     user = update.effective_user
+    chat = update.effective_chat
     add_broadcast_user(user.id)
+
+    # Restriction: If private chat and user is not admin, deny access
+    if chat.type == "private" and not is_admin(user.id):
+        text = (
+            "❌ ACCESS DENIED!\n\n"
+            "This bot is only allowed inside authorized groups.\n"
+            "Private usage is restricted to administrators."
+        )
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+        return
+
     emoji = get_user_emoji(user.id)
 
     if is_admin(user.id):
         text = (
             f"{emoji} FREXY AUTO LIKE - ADMIN COMMANDS {emoji}\n\n"
             f"👤 User Commands:\n"
-            f"`/start` - Start the bot\n"
-            f"`/help` - Show this help\n"
-            f"`/like <region> <uid>` - Send likes\n"
-            f"   Example: `/like BD 123456789`\n\n"
+            f"/start - Start the bot\n"
+            f"/help - Show this help\n"
+            f"/like <region> <uid> - Send likes\n"
+            f"Example: /like BD 123456789\n\n"
             f"🔐 Admin Commands:\n"
-            f"`/allow <group_id>` - Allow bot in group\n"
-            f"`/removegroup <group_id>` - Remove group\n"
-            f"`/add <name> <link>` - Add verify channel\n"
-            f"`/removechannel <name>` - Remove channel\n"
-            f"`/broadcast <message>` - Message all users\n"
-            f"`/unlimit <uid> <region>` - Unlimited likes\n"
-            f"`/removeunlimit <uid>` - Remove unlimited\n"
-            f"`/autolike <uid> <region>` - Auto daily like\n"
-            f"`/removeauto <uid>` - Remove auto like\n"
-            f"`/autolist` - List auto-like UIDs\n"
-            f"`/stats` - Bot statistics\n"
-            f"`/grouplist` - Allowed groups"
+            f"/allow <group_id> - Allow bot in group\n"
+            f"/removegroup <group_id> - Remove group\n"
+            f"/add <name> <link> - Add verify channel\n"
+            f"/removechannel <name> - Remove channel\n"
+            f"/broadcast <message> - Message all users\n"
+            f"/unlimit <uid> <region> - Unlimited likes\n"
+            f"/removeunlimit <uid> - Remove unlimited\n"
+            f"/autolike <uid> <region> - Auto daily like\n"
+            f"/removeauto <uid> - Remove auto like\n"
+            f"/autolist - List auto-like UIDs\n"
+            f"/stats - Bot statistics\n"
+            f"/grouplist - Allowed groups"
         )
+        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
     else:
         text = (
             f"{emoji} FREXY AUTO LIKE - USER COMMANDS {emoji}\n\n"
             f"🎮 How to use:\n"
-            f"`/like <region> <uid>`\n"
-            f"Example: `/like BD 123456789`\n\n"
+            f"/like <region> <uid>\n"
+            f"Example: /like BD 123456789\n\n"
             f"🌍 Valid Regions:\n"
-            f"`BD, IND, BR, US, SAC, NA, RU`\n\n"
+            f"BD, IND, BR, US, SAC, NA, RU\n\n"
             f"⚠️ Rules:\n"
             f"• 1 like per day per user\n"
             f"• Reset at 4:00 AM daily\n"
             f"• Must join channels to use\n"
-            f"• Bot works in private chat & allowed groups"
+            f"• Bot works in allowed groups\n\n"
+            f"⚡ POWERED BY FREXY ⚡"
         )
-
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /like command - WORKS IN PRIVATE & GROUPS"""
+    """Handle /like command - Restricted to Allowed Groups & Admin only in Private"""
     user = update.effective_user
     chat = update.effective_chat
     add_broadcast_user(user.id)
     emoji = get_user_emoji(user.id)
 
-    # Check if in group and group is allowed (private chat always allowed)
+    # Restriction: Admin can use anywhere; Regular users are restricted from private chats
+    if chat.type == "private" and not is_admin(user.id):
+        text = (
+            "❌ ACCESS DENIED!\n\n"
+            "This bot is only allowed inside authorized groups.\n"
+            "Private usage is restricted to administrators."
+        )
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # Check if in group and group is allowed
     if chat.type in ["group", "supergroup"]:
         if not is_group_allowed(chat.id):
             text = (
                 f"{emoji} FREXY AUTO LIKE {emoji}\n\n"
                 f"❌ This group is not authorized!\n"
-                f"Contact admin to allow this group."
+                f"Contact admin to allow this group.\n\n"
+                f"⚡ POWERED BY FREXY ⚡"
             )
-            await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
             return
 
     # Check args
@@ -443,14 +488,15 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             f"{emoji} WRONG COMMAND! {emoji}\n\n"
             f"✅ Correct Format:\n"
-            f"`/like <region> <uid>`\n\n"
+            f"/like <region> <uid>\n\n"
             f"📌 Examples:\n"
-            f"`/like BD 123456789`\n"
-            f"`/like IND 987654321`\n"
-            f"`/like BR 555666777`\n\n"
-            f"🌍 Valid Regions: `BD, IND, BR, US, SAC, NA, RU`"
+            f"/like BD 123456789\n"
+            f"/like IND 987654321\n"
+            f"/like BR 555666777\n\n"
+            f"🌍 Valid Regions: BD, IND, BR, US, SAC, NA, RU\n\n"
+            f"⚡ POWERED BY FREXY ⚡"
         )
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     region = context.args[0].upper()
@@ -461,10 +507,11 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             f"{emoji} INVALID REGION! {emoji}\n\n"
             f"🌍 Valid Regions:\n"
-            f"`BD, IND, BR, US, SAC, NA, RU`\n\n"
-            f"✅ Try again with correct region"
+            f"BD, IND, BR, US, SAC, NA, RU\n\n"
+            f"✅ Try again with correct region\n\n"
+            f"⚡ POWERED BY FREXY ⚡"
         )
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     # Validate UID
@@ -472,9 +519,10 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             f"{emoji} INVALID UID! {emoji}\n\n"
             f"UID must be numbers only.\n"
-            f"Example: `123456789`"
+            f"Example: 123456789\n\n"
+            f"⚡ POWERED BY FREXY ⚡"
         )
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     # Check channel membership
@@ -486,7 +534,7 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📢 Join the channels below, then click Verify:"
         )
         await update.message.reply_text(
-            format_msg(text),
+            format_bold(text),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=build_verify_keyboard(),
         )
@@ -498,20 +546,21 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{emoji} DAILY LIMIT REACHED! {emoji}\n\n"
             f"⏳ You already used your daily like!\n"
             f"🔄 Resets at 4:00 AM\n"
-            f"🕐 Come back tomorrow!"
+            f"🕐 Come back tomorrow!\n\n"
+            f"⚡ POWERED BY FREXY ⚡"
         )
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     # Send processing message
     processing_text = (
         f"{emoji} PROCESSING YOUR REQUEST... {emoji}\n\n"
-        f"🎮 Player UID: `{uid}`\n"
-        f"🌍 Region: `{region}`\n\n"
+        f"🎮 Player UID: {uid}\n"
+        f"🌍 Region: {region}\n\n"
         f"⏳ Please wait..."
     )
     msg = await update.message.reply_text(
-        format_msg(processing_text), parse_mode=ParseMode.MARKDOWN
+        format_bold(processing_text), parse_mode=ParseMode.MARKDOWN
     )
 
     # Call API - ASYNC (FAST)
@@ -522,47 +571,49 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         error_text = (
             f"{emoji} ERROR! {emoji}\n\n"
             f"❌ {result['error']}\n\n"
-            f"🎮 UID: `{uid}`\n"
-            f"🌍 Region: `{region}`"
+            f"🎮 UID: {uid}\n"
+            f"🌍 Region: {region}\n\n"
+            f"⚡ POWERED BY FREXY ⚡"
         )
-        await msg.edit_text(format_msg(error_text), parse_mode=ParseMode.MARKDOWN)
+        await msg.edit_text(format_bold(error_text), parse_mode=ParseMode.MARKDOWN)
         return
 
     if result.get("status") in [1, 2]:
-        # Success
+        # Success Values
         player_name = result.get("PlayerNickname", "Unknown")
         likes_before = result.get("LikesbeforeCommand", "N/A")
         likes_after = result.get("LikesafterCommand", "N/A")
         likes_given = result.get("LikesGivenByAPI", 0)
-        remains = result.get("remains", "N/A")
-        success_count = result.get("success_count", 0)
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        text = (
-            f"{emoji} LIKE SENT SUCCESSFULLY! {emoji}\n\n"
-            f"👤 Player Name: `{player_name}`\n"
-            f"🆔 UID: `{uid}`\n"
-            f"🌍 Region: `{region}`\n\n"
-            f"📊 Like Results:\n"
-            f"❤️ Before: `{likes_before}`\n"
-            f"❤️ After: `{likes_after}`\n"
-            f"🔥 Likes Given: `{likes_given}`\n"
-            f"✅ Success: `{success_count}` accounts\n"
-            f"📦 Remains: `{remains}`"
+        success_text = (
+            f"✅ Like Sent Successfully!\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👤 Name: {player_name}\n"
+            f"🌍 Server: {region}\n"
+            f"📉 Before: {likes_before}\n"
+            f"📈 After: {likes_after}\n"
+            f"➕ Given: {likes_given}\n"
+            f"🆔 UID: {uid}\n"
+            f"⏰ {current_time}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⚡ POWERED BY FREXY ⚡"
         )
 
         # Mark as used (only for non-unlimited + non-admin)
         if not is_unlimited(uid):
             mark_like_used(user.id)
 
-        await msg.edit_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await msg.edit_text(format_bold(success_text), parse_mode=ParseMode.MARKDOWN)
     else:
         error_text = (
             f"{emoji} FAILED! {emoji}\n\n"
             f"❌ Could not send likes\n"
-            f"🎮 UID: `{uid}`\n"
-            f"🌍 Region: `{region}`"
+            f"🎮 UID: {uid}\n"
+            f"🌍 Region: {region}\n\n"
+            f"⚡ POWERED BY FREXY ⚡"
         )
-        await msg.edit_text(format_msg(error_text), parse_mode=ParseMode.MARKDOWN)
+        await msg.edit_text(format_bold(error_text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -575,26 +626,26 @@ async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     not_joined = await check_channel_membership(user.id, context)
     if not_joined:
         text = (
-            f"{emoji} NOT VERIFIED! {emoji}\n\n"
-            f"❌ You haven't joined all channels yet!\n"
-            f"📢 Join all channels first, then click Verify again."
+            f"❌ NOT VERIFIED!\n\n"
+            f"You haven't joined all channels yet!\n"
+            f"Join all channels first, then click Verify again."
         )
         await query.edit_message_text(
-            format_msg(text),
+            format_bold(text),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=build_verify_keyboard(),
         )
     else:
         text = (
-            f"{emoji} VERIFIED SUCCESSFULLY! {emoji}\n\n"
-            f"✅ You can now use the bot!\n\n"
-            f"🎮 Use `/like <region> <uid>` to get likes"
+            f"✅ VERIFIED SUCCESSFULLY!\n\n"
+            f"You can now use the bot!\n\n"
+            f"Use /like <region> <uid> to get likes"
         )
-        await query.edit_message_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await query.edit_message_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
 
 
 # ═══════════════════════════════════════════════════════════════════
-# ADMIN COMMANDS
+# ADMIN COMMANDS (All formatted in Blockquote/Bold)
 # ═══════════════════════════════════════════════════════════════════
 
 async def allow_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -602,7 +653,7 @@ async def allow_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -610,20 +661,20 @@ async def allow_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         text = (
             "❌ WRONG FORMAT!\n\n"
-            "✅ Correct: `/allow <group_id>`\n"
-            "Example: `/allow -1001234567890`"
+            "Correct: /allow <group_id>\n"
+            "Example: /allow -1001234567890"
         )
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     group_id = context.args[0]
     allow_group(group_id)
     text = (
         f"✅ GROUP ALLOWED!\n\n"
-        f"🆔 Group ID: `{group_id}`\n"
-        f"🤖 Bot will now work in this group!"
+        f"Group ID: {group_id}\n"
+        f"Bot will now work in this group!"
     )
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def removegroup_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -631,20 +682,20 @@ async def removegroup_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
 
     if not context.args:
-        text = "❌ Correct: `/removegroup <group_id>`"
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        text = "❌ Correct: /removegroup <group_id>"
+        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     group_id = context.args[0]
     remove_group(group_id)
-    text = f"✅ Group `{group_id}` removed!"
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    text = f"✅ Group {group_id} removed!"
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def addchannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -652,7 +703,7 @@ async def addchannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -660,10 +711,10 @@ async def addchannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         text = (
             "❌ WRONG FORMAT!\n\n"
-            "✅ Correct: `/add <button_name> <channel_link>`\n"
-            "Example: `/add MyChannel https://t.me/mychannel`"
+            "Correct: /add <button_name> <channel_link>\n"
+            "Example: /add MyChannel https://t.me/mychannel"
         )
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     name = context.args[0]
@@ -671,10 +722,10 @@ async def addchannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_channel(name, link)
     text = (
         f"✅ CHANNEL ADDED!\n\n"
-        f"📢 Name: `{name}`\n"
-        f"🔗 Link: {link}"
+        f"Name: {name}\n"
+        f"Link: {link}"
     )
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def removechannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -682,20 +733,20 @@ async def removechannel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
 
     if not context.args:
-        text = "❌ Correct: `/removechannel <name>`"
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        text = "❌ Correct: /removechannel <name>"
+        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     name = context.args[0]
     remove_channel(name)
-    text = f"✅ Channel `{name}` removed!"
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    text = f"✅ Channel {name} removed!"
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -703,14 +754,14 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
 
     if not context.args:
-        text = "❌ Correct: `/broadcast <message>`"
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        text = "❌ Correct: /broadcast <message>"
+        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     message = " ".join(context.args)
@@ -719,7 +770,7 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     failed = 0
 
     status_msg = await update.message.reply_text(
-        format_msg("📢 Broadcasting..."),
+        format_admin_msg("📢 Broadcasting..."),
         parse_mode=ParseMode.MARKDOWN,
     )
 
@@ -727,10 +778,12 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             text = (
                 f"📢 MESSAGE FROM ADMIN 📢\n\n"
-                f"{message}"
+                f"{message}\n\n"
+                f"⚡ POWERED BY FREXY ⚡"
             )
+            # Standard users receive broadcast messages in full-bold format (no quotes)
             await context.bot.send_message(
-                uid, format_msg(text), parse_mode=ParseMode.MARKDOWN
+                uid, format_bold(text), parse_mode=ParseMode.MARKDOWN
             )
             sent += 1
             await asyncio.sleep(0.05)
@@ -740,10 +793,10 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = (
         f"✅ BROADCAST COMPLETE!\n\n"
-        f"📤 Sent: `{sent}`\n"
-        f"❌ Failed: `{failed}`"
+        f"Sent: {sent}\n"
+        f"Failed: {failed}"
     )
-    await status_msg.edit_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await status_msg.edit_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def unlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -751,7 +804,7 @@ async def unlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -759,10 +812,10 @@ async def unlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         text = (
             "❌ WRONG FORMAT!\n\n"
-            "✅ Correct: `/unlimit <uid> <region>`\n"
-            "Example: `/unlimit 123456789 BD`"
+            "Correct: /unlimit <uid> <region>\n"
+            "Example: /unlimit 123456789 BD"
         )
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     uid = context.args[0]
@@ -770,11 +823,11 @@ async def unlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_unlimited(uid, region)
     text = (
         f"✅ UNLIMITED LIKE ADDED!\n\n"
-        f"🆔 UID: `{uid}`\n"
-        f"🌍 Region: `{region}`\n"
-        f"♾️ No daily limit for this UID!"
+        f"UID: {uid}\n"
+        f"Region: {region}\n"
+        f"No daily limit for this UID!"
     )
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def removeunlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -782,20 +835,20 @@ async def removeunlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
 
     if not context.args:
-        text = "❌ Correct: `/removeunlimit <uid>`"
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        text = "❌ Correct: /removeunlimit <uid>"
+        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     uid = context.args[0]
     remove_unlimited(uid)
-    text = f"✅ UID `{uid}` removed from unlimited list!"
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    text = f"✅ UID {uid} removed from unlimited list!"
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def autolike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -803,7 +856,7 @@ async def autolike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -811,10 +864,10 @@ async def autolike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         text = (
             "❌ WRONG FORMAT!\n\n"
-            "✅ Correct: `/autolike <uid> <region>`\n"
-            "Example: `/autolike 123456789 BD`"
+            "Correct: /autolike <uid> <region>\n"
+            "Example: /autolike 123456789 BD"
         )
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     uid = context.args[0]
@@ -822,11 +875,11 @@ async def autolike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_auto_like(uid, region)
     text = (
         f"✅ AUTO LIKE ADDED!\n\n"
-        f"🆔 UID: `{uid}`\n"
-        f"🌍 Region: `{region}`\n"
-        f"⏰ Daily like at 7:00 AM!"
+        f"UID: {uid}\n"
+        f"Region: {region}\n"
+        f"Daily like at 7:00 AM!"
     )
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def removeauto_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -834,20 +887,20 @@ async def removeauto_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
 
     if not context.args:
-        text = "❌ Correct: `/removeauto <uid>`"
-        await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+        text = "❌ Correct: /removeauto <uid>"
+        await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
         return
 
     uid = context.args[0]
     remove_auto_like(uid)
-    text = f"✅ UID `{uid}` removed from auto-like list!"
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    text = f"✅ UID {uid} removed from auto-like list!"
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def autolist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -855,7 +908,7 @@ async def autolist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -866,10 +919,10 @@ async def autolist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         lines = ["📋 AUTO LIKE LIST:\n"]
         for uid, info in auto_list.items():
-            lines.append(f"🆔 `{uid}` | 🌍 `{info.get('region', 'N/A')}`")
+            lines.append(f"🆔 {uid} | 🌍 {info.get('region', 'N/A')}")
         text = "\n".join(lines)
 
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -877,7 +930,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -891,14 +944,14 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = (
         f"📊 BOT STATISTICS 📊\n\n"
-        f"👥 Total Users: `{len(users)}`\n"
-        f"👥 Today's Active: `{len(usage)}`\n"
-        f"🏢 Allowed Groups: `{len(groups)}`\n"
-        f"📢 Channels: `{len(channels)}`\n"
-        f"🔄 Auto-Like UIDs: `{len(auto_list)}`\n"
-        f"♾️ Unlimited UIDs: `{len(unlimited)}`"
+        f"Total Users: {len(users)}\n"
+        f"Today's Active: {len(usage)}\n"
+        f"Allowed Groups: {len(groups)}\n"
+        f"Channels: {len(channels)}\n"
+        f"Auto-Like UIDs: {len(auto_list)}\n"
+        f"Unlimited UIDs: {len(unlimited)}"
     )
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 async def grouplist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -906,7 +959,7 @@ async def grouplist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
-            format_msg("❌ You are not authorized!"),
+            format_bold("❌ You are not authorized!"),
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -917,10 +970,10 @@ async def grouplist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         lines = ["📋 ALLOWED GROUPS:\n"]
         for gid, info in groups.items():
-            lines.append(f"🆔 `{gid}`")
+            lines.append(f"🆔 {gid}")
         text = "\n".join(lines)
 
-    await update.message.reply_text(format_msg(text), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(format_admin_msg(text), parse_mode=ParseMode.MARKDOWN)
 
 
 # ═══════════════════════════════════════════════════════════════════
