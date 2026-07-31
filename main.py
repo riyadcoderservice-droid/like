@@ -39,7 +39,7 @@ ADMIN_ID = 6417430059                        # Your Telegram numeric ID
 
 # API Config for BD (Bangladesh Region)
 BD_API_BASE = "https://frexy-like-bd.vercel.app"
-BD_API_KEY = "FREXY"                         # Keep blank "" if there is no key
+BD_API_KEY = ""                         # Keep blank "" if there is no key
 
 # API Config for IND (India Region)
 IND_API_BASE = "https://frexy-x-admin-like-server.vercel.app"
