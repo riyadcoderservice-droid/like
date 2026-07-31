@@ -28,7 +28,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
 )
-from aiohttp import web  # Render port binding-এর জন্য প্রয়োজনীয়
+from aiohttp import web
 
 # ═══════════════════════════════════════════════════════════════════
 # CONFIGURATION - EDIT THESE VALUES
@@ -36,10 +36,21 @@ from aiohttp import web  # Render port binding-এর জন্য প্রয়�
 
 BOT_TOKEN = "8535184265:AAEsBNmUY1I6GBuQd33yAGjCW-Cmk1WPWJ4"          # Get from @BotFather
 ADMIN_ID = 6417430059                        # Your Telegram numeric ID
-API_KEY = "FREXY"                            # API Key (already set)
-API_BASE = "https://frexy-x-admin-like-server.vercel.app"
 
-# Required channels users MUST join (add your 2 channel links here)
+# API Config for BD (Bangladesh Region)
+BD_API_BASE = "https://frexy-like-bd.vercel.app"
+BD_API_KEY = "FREXY"                         # Keep blank "" if there is no key
+
+# API Config for IND (India Region)
+IND_API_BASE = "https://frexy-x-admin-like-server.vercel.app"
+IND_API_KEY = "FREXY"                        # Keep blank "" if there is no key
+
+# Pre-Authorized Groups/Channels list (These don't need manual /allow command)
+PRE_AUTHORIZED_GROUPS = [
+    -1003765179070,                          # Replace with your actual Channel/Group Chat ID
+]
+
+# Required channels users MUST join
 REQUIRED_CHANNELS = [
     {"name": "Channel 1", "link": "https://t.me/FREXY_OFC"},
     {"name": "Channel 2", "link": "https://t.me/FREXY_CHATS"},
@@ -65,10 +76,9 @@ EMOJI_POOL = [
     "🎮", "🎲", "🎪", "🎭", "🎨", "🎰", "🎱", "🎳",
     "🎸", "🎺", "🎻", "🎹", "🎷", "🎤", "🎧", "🎬",
     "🌟", "✨", "💫", "🌠", "🌈", "☄️", "🔮", "💀",
-    "👑", "🎓", "🎖️", "🏅", "🥇", "🥈", "🥉", "🏆",
-    "🎁", "🎀", "🎊", "🎉", "🎈", "🎄", "🎃", "🎅",
-    "🤖", "👾", "👽", "🛸", "🚀", "🛰️", "🌍", "🌎",
-    "🌏", "🌕", "🌙", "☀️", "⭐", "🌟", "💫", "✨",
+    "👑", "🎓", "🎖️", "🏅", "🥇", "🥈", "🥉", "🎁",
+    "🎀", "🎊", "🎉", "🎈", "🎄", "🎃", "🎅", "🤖",
+    "👾", "👽", "🛸", "🌍", "🌎", "🌏", "🌕", "☀️",
 ]
 
 # ═══════════════════════════════════════════════════════════════════
@@ -93,6 +103,7 @@ FILES = {
     "groups": os.path.join(DATA_DIR, "groups.json"),
     "channels": os.path.join(DATA_DIR, "channels.json"),
     "auto_like": os.path.join(DATA_DIR, "auto_like.json"),
+    "target_like": os.path.join(DATA_DIR, "target_like.json"),
     "daily_usage": os.path.join(DATA_DIR, "daily_usage.json"),
     "unlimited": os.path.join(DATA_DIR, "unlimited.json"),
     "broadcast_users": os.path.join(DATA_DIR, "broadcast_users.json"),
@@ -107,7 +118,7 @@ def load_data(key):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except:
+        except Exception:
             return {}
     return {}
 
@@ -130,7 +141,6 @@ def format_bold(text):
     for line in lines:
         stripped = line.strip()
         if stripped:
-            # Remove existing formatting and quote symbols to ensure clean rendering
             clean = stripped.replace("*", "").replace("_", "").replace(">", "").strip()
             if clean:
                 formatted_lines.append(f"*{clean}*")
@@ -178,7 +188,9 @@ def reset_daily_usage():
 
 
 def is_group_allowed(chat_id):
-    """Check if group is allowed"""
+    """Check if group is allowed (Pre-authorized lists always return True)"""
+    if chat_id in PRE_AUTHORIZED_GROUPS:
+        return True
     groups = load_data("groups")
     return str(chat_id) in groups
 
@@ -218,24 +230,48 @@ def get_channels():
     return load_data("channels")
 
 
-def add_auto_like(uid, region):
-    """Add UID to auto-like list"""
+def add_auto_like(uid, region, days):
+    """Add UID to auto-like list with duration in days"""
     auto = load_data("auto_like")
-    auto[uid] = {"region": region.upper(), "added_at": datetime.now().isoformat()}
+    auto[str(uid)] = {
+        "region": region.upper(),
+        "days_left": int(days),
+        "added_at": datetime.now().isoformat()
+    }
     save_data("auto_like", auto)
 
 
 def remove_auto_like(uid):
     """Remove UID from auto-like list"""
     auto = load_data("auto_like")
-    if uid in auto:
-        del auto[uid]
+    if str(uid) in auto:
+        del auto[str(uid)]
         save_data("auto_like", auto)
 
 
 def get_auto_like_list():
     """Get all auto-like UIDs"""
     return load_data("auto_like")
+
+
+def add_target_like(uid, region, target_limit):
+    """Add UID with target likes limit"""
+    targets = load_data("target_like")
+    targets[str(uid)] = {
+        "region": region.upper(),
+        "target_limit": int(target_limit),
+        "likes_sent": 0,
+        "added_at": datetime.now().isoformat()
+    }
+    save_data("target_like", targets)
+
+
+def remove_target_like(uid):
+    """Remove UID from target like list"""
+    targets = load_data("target_like")
+    if str(uid) in targets:
+        del targets[str(uid)]
+        save_data("target_like", targets)
 
 
 def add_unlimited(uid, region):
@@ -287,20 +323,38 @@ def get_user_emoji(user_id):
 # ═══════════════════════════════════════════════════════════════════
 
 async def send_like_api(uid, region):
-    """Call the Free Fire Like API - ASYNC for speed"""
+    """Call the Free Fire Like API - ASYNC for speed with multi-api support"""
+    region = region.upper()
+    
+    # Check region to determine correct API and Key
+    if region == "BD":
+        base_url = BD_API_BASE
+        api_key = BD_API_KEY
+    elif region == "IND":
+        base_url = IND_API_BASE
+        api_key = IND_API_KEY
+    else:
+        # Fallback default if another region is provided
+        base_url = BD_API_BASE
+        api_key = BD_API_KEY
+
     try:
-        url = f"{API_BASE}/like"
+        url = f"{base_url.rstrip('/')}/like"
         params = {
-            "key": API_KEY,
             "uid": str(uid),
-            "server_name": region.upper(),
+            "server_name": region,
         }
+        
+        # Include API Key only if it is set and not empty
+        if api_key and api_key.strip():
+            params["key"] = api_key
+            
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=25)) as resp:
                 data = await resp.json()
                 return data
     except Exception as e:
-        logger.error(f"API Error: {e}")
+        logger.error(f"API Error for {region} (UID: {uid}): {e}")
         return {"error": str(e), "status": 0}
 
 
@@ -358,7 +412,6 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     add_broadcast_user(user.id)
 
-    # Restriction: Admin can use private; Regular users are restricted
     if chat.type == "private" and not is_admin(user.id):
         text = (
             "❌ ACCESS DENIED!\n\n"
@@ -383,12 +436,11 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /help command"""
+    """Handle /help command with distinct admin and user views"""
     user = update.effective_user
     chat = update.effective_chat
     add_broadcast_user(user.id)
 
-    # Restriction: Admin can use private; Regular users are restricted
     if chat.type == "private" and not is_admin(user.id):
         text = (
             "❌ ACCESS DENIED!\n\n"
@@ -402,12 +454,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if is_admin(user.id):
         text = (
-            f"{emoji} FREXY AUTO LIKE - ADMIN COMMANDS {emoji}\n\n"
-            f"👤 User Commands:\n"
-            f"/start - Start the bot\n"
-            f"/help - Show this help\n"
-            f"/like <region> <uid> - Send likes\n"
-            f"Example: /like BD 123456789\n\n"
+            f"{emoji} FREXY AUTO LIKE - ADMIN PANEL {emoji}\n\n"
             f"🔐 Admin Commands:\n"
             f"/allow <group_id> - Allow bot in group\n"
             f"/removegroup <group_id> - Remove group\n"
@@ -416,16 +463,19 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"/broadcast <message> - Message all users\n"
             f"/unlimit <uid> <region> - Unlimited likes\n"
             f"/removeunlimit <uid> - Remove unlimited\n"
-            f"/autolike <uid> <region> - Auto daily like\n"
+            f"/autolike <region> <uid> <days> - Auto daily like\n"
             f"/removeauto <uid> - Remove auto like\n"
             f"/autolist - List auto-like UIDs\n"
+            f"/tlike <region> <uid> <target_limit> - Daily like until target\n"
+            f"/removetlike <uid> - Remove target like\n"
+            f"/tlist - List target likes\n"
             f"/stats - Bot statistics\n"
             f"/grouplist - Allowed groups\n\n"
             f"⚡ POWERED BY FREXY ⚡"
         )
     else:
         text = (
-            f"{emoji} FREXY AUTO LIKE - USER COMMANDS {emoji}\n\n"
+            f"{emoji} FREXY AUTO LIKE - USER MENU {emoji}\n\n"
             f"🎮 How to use:\n"
             f"/like <region> <uid>\n"
             f"Example: /like BD 123456789\n\n"
@@ -443,13 +493,12 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /like command - Only Works in Allowed Groups for users"""
+    """Handle /like command - Works in Allowed or Pre-Authorized Groups"""
     user = update.effective_user
     chat = update.effective_chat
     add_broadcast_user(user.id)
     emoji = get_user_emoji(user.id)
 
-    # Restriction: Admin can use private; Regular users are restricted
     if chat.type == "private" and not is_admin(user.id):
         text = (
             "❌ ACCESS DENIED!\n\n"
@@ -459,7 +508,6 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
-    # Check if in group and group is allowed
     if chat.type in ["group", "supergroup"]:
         if not is_group_allowed(chat.id):
             text = (
@@ -471,7 +519,6 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
             return
 
-    # Check args
     if len(context.args) < 2:
         text = (
             f"{emoji} WRONG COMMAND! {emoji}\n\n"
@@ -479,8 +526,7 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"/like <region> <uid>\n\n"
             f"📌 Examples:\n"
             f"/like BD 123456789\n"
-            f"/like IND 987654321\n"
-            f"/like BR 555666777\n\n"
+            f"/like IND 987654321\n\n"
             f"🌍 Valid Regions: BD, IND, BR, US, SAC, NA, RU\n\n"
             f"⚡ POWERED BY FREXY ⚡"
         )
@@ -490,30 +536,53 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     region = context.args[0].upper()
     uid = context.args[1]
 
-    # Validate region
     if region not in VALID_REGIONS:
         text = (
             f"{emoji} INVALID REGION! {emoji}\n\n"
             f"🌍 Valid Regions:\n"
             f"BD, IND, BR, US, SAC, NA, RU\n\n"
-            f"✅ Try again with correct region\n\n"
             f"⚡ POWERED BY FREXY ⚡"
         )
         await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
-    # Validate UID
     if not uid.isdigit():
         text = (
             f"{emoji} INVALID UID! {emoji}\n\n"
             f"UID must be numbers only.\n"
-            f"Example: 123456789\n\n"
             f"⚡ POWERED BY FREXY ⚡"
         )
         await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
-    # Check channel membership
+    # Check if the UID is already in Auto-Like or Target-Like lists
+    auto_list = get_auto_like_list()
+    targets = load_data("target_like")
+
+    if uid in auto_list:
+        days_left = auto_list[uid].get("days_left", 0)
+        text = (
+            f"❌ REQUEST REJECTED!\n\n"
+            f"This UID already has an active Auto-Like setup.\n"
+            f"📅 Remaining Duration: {days_left} Days\n"
+            f"Likes are delivered automatically daily."
+        )
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+        return
+
+    if uid in targets:
+        likes_sent = targets[uid].get("likes_sent", 0)
+        target_limit = targets[uid].get("target_limit", 0)
+        text = (
+            f"❌ REQUEST REJECTED!\n\n"
+            f"This UID already has an active Target-Like setup.\n"
+            f"📈 Current Progress: {likes_sent}/{target_limit} Likes\n"
+            f"Likes are delivered automatically daily."
+        )
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # Channel check
     not_joined = await check_channel_membership(user.id, context)
     if not_joined:
         text = (
@@ -528,19 +597,16 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Check daily limit (ADMIN BYPASSED + unlimited UIDs bypassed)
     if not is_unlimited(uid) and not can_use_like(user.id):
         text = (
             f"{emoji} DAILY LIMIT REACHED! {emoji}\n\n"
             f"⏳ You already used your daily like!\n"
-            f"🔄 Resets at 4:00 AM\n"
-            f"🕐 Come back tomorrow!\n\n"
+            f"🔄 Resets at 4:00 AM\n\n"
             f"⚡ POWERED BY FREXY ⚡"
         )
         await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
-    # Send processing message
     processing_text = (
         f"{emoji} PROCESSING YOUR REQUEST... {emoji}\n\n"
         f"🎮 Player UID: {uid}\n"
@@ -551,10 +617,8 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         format_bold(processing_text), parse_mode=ParseMode.MARKDOWN
     )
 
-    # Call API - ASYNC (FAST)
     result = await send_like_api(uid, region)
 
-    # Handle API response
     if result.get("error"):
         error_text = (
             f"{emoji} ERROR! {emoji}\n\n"
@@ -567,7 +631,6 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if result.get("status") in [1, 2]:
-        # Success Layout Matching User Format
         player_name = result.get("PlayerNickname", "Unknown")
         likes_before = result.get("LikesbeforeCommand", "N/A")
         likes_after = result.get("LikesafterCommand", "N/A")
@@ -588,7 +651,6 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⚡ POWERED BY FREXY ⚡"
         )
 
-        # Mark as used (only for non-unlimited + non-admin)
         if not is_unlimited(uid):
             mark_like_used(user.id)
 
@@ -609,7 +671,6 @@ async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user = query.from_user
-    emoji = get_user_emoji(user.id)
 
     not_joined = await check_channel_membership(user.id, context)
     if not_joined:
@@ -852,7 +913,7 @@ async def removeunlimit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def autolike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /autolike command"""
+    """Handle /autolike command with format: /autolike <region> <uid> <days>"""
     user = update.effective_user
     if not is_admin(user.id):
         await update.message.reply_text(
@@ -861,22 +922,39 @@ async def autolike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if len(context.args) < 2:
+    if len(context.args) < 3:
         text = (
             "❌ WRONG FORMAT!\n\n"
-            "Correct: /autolike <uid> <region>\n"
-            "Example: /autolike 123456789 BD"
+            "Correct: /autolike <region> <uid> <days>\n"
+            "Example: /autolike BD 123456789 30"
         )
         await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
         return
 
-    uid = context.args[0]
-    region = context.args[1].upper()
-    add_auto_like(uid, region)
+    region = context.args[0].upper()
+    uid = context.args[1]
+    days = context.args[2]
+
+    if region not in VALID_REGIONS:
+        await update.message.reply_text(
+            format_bold(f"❌ Invalid Region. Available: {', '.join(VALID_REGIONS)}"),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    if not uid.isdigit() or not days.isdigit():
+        await update.message.reply_text(
+            format_bold("❌ UID and Days must be numbers!"),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    add_auto_like(uid, region, days)
     text = (
         f"✅ AUTO LIKE ADDED!\n\n"
         f"UID: {uid}\n"
         f"Region: {region}\n"
+        f"Duration: {days} Days\n"
         f"Daily like at 7:00 AM!\n\n"
         f"⚡ POWERED BY FREXY ⚡"
     )
@@ -923,7 +1001,103 @@ async def autolist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         lines = ["📋 AUTO LIKE LIST:\n"]
         for uid, info in auto_list.items():
-            lines.append(f"🆔 {uid} | 🌍 {info.get('region', 'N/A')}")
+            lines.append(f"🆔 {uid} | 🌍 {info.get('region', 'N/A')} | 📅 Remaining: {info.get('days_left', 0)} Days")
+        text = "\n".join(lines)
+        text += "\n\n⚡ POWERED BY FREXY ⚡"
+
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+
+
+async def tlike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /tlike command (Target Likes)"""
+    user = update.effective_user
+    if not is_admin(user.id):
+        await update.message.reply_text(
+            format_bold("❌ You are not authorized!"),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    if len(context.args) < 3:
+        text = (
+            "❌ WRONG FORMAT!\n\n"
+            "Correct: /tlike <region> <uid> <target_limit>\n"
+            "Example: /tlike BD 123456789 200"
+        )
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+        return
+
+    region = context.args[0].upper()
+    uid = context.args[1]
+    target_limit = context.args[2]
+
+    if region not in VALID_REGIONS:
+        await update.message.reply_text(
+            format_bold(f"❌ Invalid Region. Available: {', '.join(VALID_REGIONS)}"),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    if not uid.isdigit() or not target_limit.isdigit():
+        await update.message.reply_text(
+            format_bold("❌ UID and Target Limit must be numbers!"),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    add_target_like(uid, region, target_limit)
+    text = (
+        f"✅ TARGET LIKE ADDED!\n\n"
+        f"UID: {uid}\n"
+        f"Region: {region}\n"
+        f"Target Limit: {target_limit} Likes\n"
+        f"Will process daily at 7:00 AM until limit is reached!\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
+    )
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+
+
+async def removetlike_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /removetlike command"""
+    user = update.effective_user
+    if not is_admin(user.id):
+        await update.message.reply_text(
+            format_bold("❌ You are not authorized!"),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    if not context.args:
+        text = "❌ Correct: /removetlike <uid>"
+        await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+        return
+
+    uid = context.args[0]
+    remove_target_like(uid)
+    text = (
+        f"✅ UID {uid} removed from target-like list!\n\n"
+        f"⚡ POWERED BY FREXY ⚡"
+    )
+    await update.message.reply_text(format_bold(text), parse_mode=ParseMode.MARKDOWN)
+
+
+async def tlist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /tlist command"""
+    user = update.effective_user
+    if not is_admin(user.id):
+        await update.message.reply_text(
+            format_bold("❌ You are not authorized!"),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    targets = load_data("target_like")
+    if not targets:
+        text = "📋 Target-like list is empty!"
+    else:
+        lines = ["📋 TARGET LIKE LIST:\n"]
+        for uid, info in targets.items():
+            lines.append(f"🆔 {uid} | 🌍 {info.get('region', 'N/A')} | 📈 Progress: {info.get('likes_sent', 0)}/{info.get('target_limit', 0)}")
         text = "\n".join(lines)
         text += "\n\n⚡ POWERED BY FREXY ⚡"
 
@@ -944,6 +1118,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     groups = load_data("groups")
     channels = get_channels()
     auto_list = get_auto_like_list()
+    targets = load_data("target_like")
     unlimited = load_data("unlimited")
     usage = load_data("daily_usage")
 
@@ -954,6 +1129,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Allowed Groups: {len(groups)}\n"
         f"Channels: {len(channels)}\n"
         f"Auto-Like UIDs: {len(auto_list)}\n"
+        f"Target-Like UIDs: {len(targets)}\n"
         f"Unlimited UIDs: {len(unlimited)}\n\n"
         f"⚡ POWERED BY FREXY ⚡"
     )
@@ -971,12 +1147,22 @@ async def grouplist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     groups = load_data("groups")
-    if not groups:
-        text = "📋 No groups allowed yet!"
-    else:
-        lines = ["📋 ALLOWED GROUPS:\n"]
+    lines = ["📋 ALLOWED GROUPS:\n"]
+    
+    if PRE_AUTHORIZED_GROUPS:
+        lines.append("⚙️ Pre-Authorized (From Code):")
+        for gid in PRE_AUTHORIZED_GROUPS:
+            lines.append(f"🆔 {gid}")
+        lines.append("")
+
+    if groups:
+        lines.append("📝 Manually Allowed:")
         for gid, info in groups.items():
             lines.append(f"🆔 {gid}")
+    
+    if len(lines) == 1:
+        text = "📋 No groups allowed yet!"
+    else:
         text = "\n".join(lines)
         text += "\n\n⚡ POWERED BY FREXY ⚡"
 
@@ -995,39 +1181,137 @@ async def run_daily_reset(application):
         if target <= now:
             target += timedelta(days=1)
         wait_seconds = (target - now).total_seconds()
-        logger.info(f"Next daily reset in {wait_seconds/3600:.1f} hours")
+        logger.info(f"Next daily reset scheduled in {wait_seconds/3600:.1f} hours")
         await asyncio.sleep(wait_seconds)
         reset_daily_usage()
 
 
 async def run_auto_like(application):
-    """Send auto likes at 7:00 AM daily"""
+    """Send auto likes and target likes daily at 7:00 AM with log delivery to Admin Chat"""
     while True:
         now = datetime.now()
         target = now.replace(hour=AUTO_LIKE_HOUR, minute=AUTO_LIKE_MINUTE, second=0, microsecond=0)
         if target <= now:
             target += timedelta(days=1)
         wait_seconds = (target - now).total_seconds()
-        logger.info(f"Next auto-like in {wait_seconds/3600:.1f} hours")
+        logger.info(f"Next scheduled auto-like run in {wait_seconds/3600:.1f} hours")
         await asyncio.sleep(wait_seconds)
 
-        # Send auto likes
+        # Admin Log summary buffer
+        admin_report = ["📢 DAILY AUTO-LIKE REPORT 📢\n"]
+        has_auto = False
+        has_target = False
+
+        # ----------------------------------------------------
+        # Part 1: Auto Likes (Duration / Days based)
+        # ----------------------------------------------------
         auto_list = get_auto_like_list()
-        for uid, info in auto_list.items():
+        updated_auto_list = {}
+        
+        if auto_list:
+            admin_report.append("📅 ACTIVE AUTO LIKES STATUS:")
+            has_auto = True
+            
+        for uid, info in list(auto_list.items()):
+            days_left = info.get("days_left", 0)
+            if days_left <= 0:
+                continue
+
             region = info.get("region", "BD")
+            status_text = ""
             try:
                 result = await send_like_api(uid, region)
                 if result.get("status") in [1, 2]:
-                    logger.info(f"Auto-like sent to {uid} ({region})")
+                    logger.info(f"Auto-like successfully sent to {uid} ({region})")
+                    status_text = "✅ SUCCESS"
                 else:
-                    logger.error(f"Auto-like failed for {uid}: {result.get('error')}")
+                    err_msg = result.get("error", "API Failed")
+                    logger.error(f"Auto-like failed for {uid}: {err_msg}")
+                    status_text = f"❌ FAILED ({err_msg})"
             except Exception as e:
-                logger.error(f"Auto-like error for {uid}: {e}")
-            await asyncio.sleep(1)
+                logger.error(f"Auto-like run-error for {uid}: {e}")
+                status_text = f"❌ ERROR ({str(e)})"
+
+            # Decrement days left
+            new_days = days_left - 1
+            if new_days > 0:
+                info["days_left"] = new_days
+                updated_auto_list[uid] = info
+                admin_report.append(f"• UID: {uid} | {region} | Status: {status_text} | Days Left: {new_days}")
+            else:
+                logger.info(f"Auto-like duration expired for UID: {uid}")
+                admin_report.append(f"• UID: {uid} | {region} | Status: {status_text} | Status: EXPIRED/REMOVED")
+            
+            await asyncio.sleep(1.5)  # API request interval delay
+        
+        save_data("auto_like", updated_auto_list)
+
+        # Formatting space between logs
+        admin_report.append("")
+
+        # ----------------------------------------------------
+        # Part 2: Target Likes (Target count limit based)
+        # ----------------------------------------------------
+        targets = load_data("target_like")
+        updated_targets = {}
+        
+        if targets:
+            admin_report.append("📈 ACTIVE TARGET LIKES STATUS:")
+            has_target = True
+            
+        for uid, info in list(targets.items()):
+            target_limit = info.get("target_limit", 0)
+            likes_sent = info.get("likes_sent", 0)
+
+            if likes_sent >= target_limit:
+                continue
+
+            region = info.get("region", "BD")
+            status_text = ""
+            try:
+                result = await send_like_api(uid, region)
+                if result.get("status") in [1, 2]:
+                    logger.info(f"Target-like successfully sent to {uid} ({region})")
+                    likes_sent += 1
+                    status_text = "✅ SUCCESS"
+                else:
+                    err_msg = result.get("error", "API Failed")
+                    logger.error(f"Target-like failed for {uid}: {err_msg}")
+                    status_text = f"❌ FAILED ({err_msg})"
+            except Exception as e:
+                logger.error(f"Target-like run-error for {uid}: {e}")
+                status_text = f"❌ ERROR ({str(e)})"
+
+            # Save status or discard if target limit reached
+            if likes_sent < target_limit:
+                info["likes_sent"] = likes_sent
+                updated_targets[uid] = info
+                admin_report.append(f"• UID: {uid} | {region} | Status: {status_text} | Progress: {likes_sent}/{target_limit}")
+            else:
+                logger.info(f"Target limit ({target_limit}) reached successfully for UID: {uid}")
+                admin_report.append(f"• UID: {uid} | {region} | Status: {status_text} | Status: TARGET REACHED/REMOVED")
+            
+            await asyncio.sleep(1.5)
+
+        save_data("target_like", updated_targets)
+
+        # Send report to Admin via private chat if any job is registered
+        if has_auto or has_target:
+            admin_report.append("⚡ POWERED BY FREXY ⚡")
+            report_text = "\n".join(admin_report)
+            try:
+                await application.bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text=format_bold(report_text),
+                    parse_mode=ParseMode.MARKDOWN
+                )
+                logger.info("Daily admin report sent successfully.")
+            except Exception as e:
+                logger.error(f"Failed to send Admin private report: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════
-# MAIN (Render-এ রান করার জন্য Async-এ রূপান্তরিত করা হয়েছে)
+# MAIN (Async Server Startup)
 # ═══════════════════════════════════════════════════════════════════
 
 async def main_async():
@@ -1050,6 +1334,9 @@ async def main_async():
     application.add_handler(CommandHandler("autolike", autolike_cmd))
     application.add_handler(CommandHandler("removeauto", removeauto_cmd))
     application.add_handler(CommandHandler("autolist", autolist_cmd))
+    application.add_handler(CommandHandler("tlike", tlike_cmd))
+    application.add_handler(CommandHandler("removetlike", removetlike_cmd))
+    application.add_handler(CommandHandler("tlist", tlist_cmd))
     application.add_handler(CommandHandler("stats", stats_cmd))
     application.add_handler(CommandHandler("grouplist", grouplist_cmd))
 
@@ -1066,7 +1353,7 @@ async def main_async():
     await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
     logger.info("Telegram Bot polling started.")
 
-    # dummy web server चालू করা (Render port binding এর জন্য)
+    # Render Port Binding Setup
     app = web.Application()
     app.router.add_get('/', lambda r: web.Response(text="Bot is running successfully!"))
     runner = web.AppRunner(app)
@@ -1076,7 +1363,6 @@ async def main_async():
     await site.start()
     logger.info(f"Port binding web server started on port {port}")
 
-    # Keep running
     try:
         while True:
             await asyncio.sleep(3600)
