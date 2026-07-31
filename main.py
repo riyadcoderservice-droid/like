@@ -36,8 +36,8 @@ from aiohttp import web  # Render port binding-এর জন্য প্রয়�
 
 BOT_TOKEN = "8535184265:AAEsBNmUY1I6GBuQd33yAGjCW-Cmk1WPWJ4"          # Get from @BotFather
 ADMIN_ID = 6417430059                        # Your Telegram numeric ID
-API_KEY = "JMLB"                            # API Key (already set)
-API_BASE = "https://samiullike-production.up.railway.app"
+API_KEY = "FREXY"                            # API Key (already set)
+API_BASE = "https://frexy-x-admin-like-server.vercel.app"
 
 # Required channels users MUST join (add your 2 channel links here)
 REQUIRED_CHANNELS = [
