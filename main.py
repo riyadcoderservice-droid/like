@@ -37,13 +37,9 @@ from aiohttp import web
 BOT_TOKEN = "8535184265:AAEsBNmUY1I6GBuQd33yAGjCW-Cmk1WPWJ4"          # Get from @BotFather
 ADMIN_ID = 6417430059                        # Your Telegram numeric ID
 
-# API Config for BD (Bangladesh Region)
-BD_API_BASE = "https://frexy-like-bd.vercel.app"
-BD_API_KEY = ""                         # Keep blank "" if there is no key
-
-# API Config for IND (India Region)
-IND_API_BASE = "https://frexy-x-admin-like-server.vercel.app"
-IND_API_KEY = "FREXY"                        # Keep blank "" if there is no key
+# Single API Config (Used for all regions like BD, IND, etc.)
+API_BASE = "https://frexy-x-admin-like-server.vercel.app"
+API_KEY = "FREXY"                            # Keep blank "" if there is no key
 
 # Pre-Authorized Groups/Channels list (These don't need manual /allow command)
 PRE_AUTHORIZED_GROUPS = [
@@ -323,38 +319,24 @@ def get_user_emoji(user_id):
 # ═══════════════════════════════════════════════════════════════════
 
 async def send_like_api(uid, region):
-    """Call the Free Fire Like API - ASYNC for speed with multi-api support"""
-    region = region.upper()
-    
-    # Check region to determine correct API and Key
-    if region == "BD":
-        base_url = BD_API_BASE
-        api_key = BD_API_KEY
-    elif region == "IND":
-        base_url = IND_API_BASE
-        api_key = IND_API_KEY
-    else:
-        # Fallback default if another region is provided
-        base_url = BD_API_BASE
-        api_key = BD_API_KEY
-
+    """Call the Free Fire Like API - ASYNC for speed"""
     try:
-        url = f"{base_url.rstrip('/')}/like"
+        url = f"{API_BASE.rstrip('/')}/like"
         params = {
             "uid": str(uid),
-            "server_name": region,
+            "server_name": region.upper(),
         }
         
-        # Include API Key only if it is set and not empty
-        if api_key and api_key.strip():
-            params["key"] = api_key
+        # Include API Key parameter only if it is set and not empty
+        if API_KEY and API_KEY.strip():
+            params["key"] = API_KEY
             
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=25)) as resp:
                 data = await resp.json()
                 return data
     except Exception as e:
-        logger.error(f"API Error for {region} (UID: {uid}): {e}")
+        logger.error(f"API Error for {region.upper()} (UID: {uid}): {e}")
         return {"error": str(e), "status": 0}
 
 
