@@ -38,7 +38,7 @@ BOT_TOKEN = "8535184265:AAEsBNmUY1I6GBuQd33yAGjCW-Cmk1WPWJ4"          # Get from
 ADMIN_ID = 6417430059                        # Your Telegram numeric ID
 
 # Single API Config (Used for all regions like BD, IND, etc.)
-API_BASE = "new-like-production.up.railway.app"
+API_BASE = "https://frexy-x-like.onrender.com"
 API_KEY = "FREXY"                            # Keep blank "" if there is no key
 
 # Pre-Authorized Groups/Channels list (These don't need manual /allow command)
@@ -319,7 +319,7 @@ def get_user_emoji(user_id):
 # ═══════════════════════════════════════════════════════════════════
 
 async def send_like_api(uid, region):
-    """Call the Free Fire Like API - ASYNC for speed"""
+    """Call the Free Fire Like API - Safe error handling without leaking URLs"""
     try:
         url = f"{API_BASE.rstrip('/')}/like"
         params = {
@@ -333,11 +333,17 @@ async def send_like_api(uid, region):
             
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=25)) as resp:
+                if resp.status != 200:
+                    logger.error(f"API HTTP Error: Status code {resp.status}")
+                    return {"error": "API is currently not working or returned invalid status.", "status": 0}
+                
                 data = await resp.json()
                 return data
     except Exception as e:
-        logger.error(f"API Error for {region.upper()} (UID: {uid}): {e}")
-        return {"error": str(e), "status": 0}
+        # Save actual error details to the internal logs (hidden from Telegram users)
+        logger.error(f"Internal API Connection Error: {e}")
+        # Return a generic safe message
+        return {"error": "API is currently not working or under maintenance.", "status": 0}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -640,7 +646,7 @@ async def like_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         error_text = (
             f"{emoji} FAILED! {emoji}\n\n"
-            f"❌ Could not send likes\n"
+            f"❌ Could not send likes. API is currently down.\n"
             f"🎮 UID: {uid}\n"
             f"🌍 Region: {region}\n\n"
             f"⚡ POWERED BY FREXY ⚡"
@@ -1209,10 +1215,10 @@ async def run_auto_like(application):
                 else:
                     err_msg = result.get("error", "API Failed")
                     logger.error(f"Auto-like failed for {uid}: {err_msg}")
-                    status_text = f"❌ FAILED ({err_msg})"
+                    status_text = f"❌ FAILED"
             except Exception as e:
                 logger.error(f"Auto-like run-error for {uid}: {e}")
-                status_text = f"❌ ERROR ({str(e)})"
+                status_text = f"❌ ERROR"
 
             # Decrement days left
             new_days = days_left - 1
@@ -1259,10 +1265,10 @@ async def run_auto_like(application):
                 else:
                     err_msg = result.get("error", "API Failed")
                     logger.error(f"Target-like failed for {uid}: {err_msg}")
-                    status_text = f"❌ FAILED ({err_msg})"
+                    status_text = f"❌ FAILED"
             except Exception as e:
                 logger.error(f"Target-like run-error for {uid}: {e}")
-                status_text = f"❌ ERROR ({str(e)})"
+                status_text = f"❌ ERROR"
 
             # Save status or discard if target limit reached
             if likes_sent < target_limit:
