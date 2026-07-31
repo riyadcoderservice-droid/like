@@ -39,7 +39,7 @@ ADMIN_ID = 6417430059                        # Your Telegram numeric ID
 
 # Single API Config (Used for all regions like BD, IND, etc.)
 API_BASE = "https://frexy-like-bd-ind.vercel.app"
-API_KEY = "JMBL"                            # Keep blank "" if there is no key
+API_KEY = "JMLB"                            # Keep blank "" if there is no key
 
 # Pre-Authorized Groups/Channels list (These don't need manual /allow command)
 PRE_AUTHORIZED_GROUPS = [
