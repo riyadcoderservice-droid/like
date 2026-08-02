@@ -37,9 +37,9 @@ from aiohttp import web
 BOT_TOKEN = "8535184265:AAEsBNmUY1I6GBuQd33yAGjCW-Cmk1WPWJ4"          # Get from @BotFather
 ADMIN_ID = 6417430059                        # Your Telegram numeric ID
 
-# Single API Config (Used for all regions like BD, IND, etc.)
+# Single API Config
 API_BASE = "https://like-api-frexy.onrender.com"
-API_KEY = "JMLB"                            # Keep blank "" if there is no key
+# API_KEY IS NO LONGER USED AS PER YOUR REQUEST
 
 # Pre-Authorized Groups/Channels list (These don't need manual /allow command)
 PRE_AUTHORIZED_GROUPS = [
@@ -315,11 +315,11 @@ def get_user_emoji(user_id):
 
 
 # ═══════════════════════════════════════════════════════════════════
-# FREE FIRE API CLIENT - ASYNC (FAST)
+# FREE FIRE API CLIENT - UPDATED FOR NO KEY
 # ═══════════════════════════════════════════════════════════════════
 
 async def send_like_api(uid, region):
-    """Call the Free Fire Like API - Safe error handling without leaking URLs"""
+    """Call the API: https://like-api-frexy.onrender.com/like?uid=UID&server_name=REGION"""
     try:
         url = f"{API_BASE.rstrip('/')}/like"
         params = {
@@ -327,10 +327,6 @@ async def send_like_api(uid, region):
             "server_name": region.upper(),
         }
         
-        # Include API Key parameter only if it is set and not empty
-        if API_KEY and API_KEY.strip():
-            params["key"] = API_KEY
-            
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=25)) as resp:
                 if resp.status != 200:
@@ -340,9 +336,7 @@ async def send_like_api(uid, region):
                 data = await resp.json()
                 return data
     except Exception as e:
-        # Save actual error details to the internal logs (hidden from Telegram users)
         logger.error(f"Internal API Connection Error: {e}")
-        # Return a generic safe message
         return {"error": "API is currently not working or under maintenance.", "status": 0}
 
 
