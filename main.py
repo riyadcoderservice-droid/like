@@ -38,7 +38,7 @@ BOT_TOKEN = "8535184265:AAEsBNmUY1I6GBuQd33yAGjCW-Cmk1WPWJ4"          # Get from
 ADMIN_ID = 6417430059                        # Your Telegram numeric ID
 
 # Single API Config (Used for all regions like BD, IND, etc.)
-API_BASE = "https://frexy-like-bd-ind.onrender.com"
+API_BASE = "https://like-api-frexy.onrender.com"
 API_KEY = "JMLB"                            # Keep blank "" if there is no key
 
 # Pre-Authorized Groups/Channels list (These don't need manual /allow command)
